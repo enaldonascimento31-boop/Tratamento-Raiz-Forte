@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Atendimento Exclusivo - Dra. Patrícia</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: #0b0f19; color: #fff; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+    .card { background: #111827; border: 1px solid #1f2937; border-radius: 20px; padding: 32px 24px; max-width: 420px; width: 100%; box-shadow: 0 20px 40px rgba(0,0,0,0.5); text-align: center; }
+    h1 { font-size: 20px; font-weight: 800; margin-bottom: 8px; color: #f3f4f6; }
+    p { font-size: 13px; color: #9ca3af; line-height: 1.5; margin-bottom: 24px; }
+    .input-group { text-align: left; margin-bottom: 14px; }
+    label { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #9ca3af; margin-bottom: 6px; display: block; }
+    input { width: 100%; background: #1f2937; border: 1px solid #374151; color: #fff; padding: 14px 16px; border-radius: 12px; font-size: 14px; outline: none; transition: border-color 0.2s; }
+    input:focus { border-color: #10b981; }
+    .btn { width: 100%; background: #10b981; color: #fff; font-weight: 800; font-size: 15px; border: none; padding: 16px; border-radius: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s; margin-top: 8px; box-shadow: 0 8px 20px rgba(16,185,129,0.3); text-decoration: none; }
+    .btn:hover { background: #059669; transform: translateY(-1px); }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .security { font-size: 11px; color: #6b7280; margin-top: 18px; display: flex; align-items: center; justify-content: center; gap: 6px; }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <div style="font-size: 40px; margin-bottom: 12px;">👩‍⚕️</div>
+    <h1>Atendimento Exclusivo</h1>
+    <p>Confirme seus dados para desbloquear seu cupom e prosseguir com o pagamento seguro.</p>
+
+    <form id="leadForm" onsubmit="handleSubmit(event)">
+      <div class="input-group">
+        <label for="name">Seu Nome Completo:</label>
+        <input type="text" id="name" placeholder="Ex: Maria Eduarda" required>
+      </div>
+
+      <div class="input-group">
+        <label for="phone">Seu WhatsApp (com DDD):</label>
+        <input type="tel" id="phone" placeholder="Ex: (11) 98765-4321" required oninput="mascaraTelefone(this)">
+      </div>
+
+      <button type="submit" id="btnSubmit" class="btn">
+        <i class="fa-solid fa-lock"></i>
+        <span>IR PARA O PAGAMENTO SEGURO</span>
+      </button>
+    </form>
+
+    <div class="security">
+      <i class="fa-solid fa-shield-halved"></i> Ambiente 100% Criptografado e Seguro.
+    </div>
+  </div>
+
+  <script>
+    // ================= CONFIGURAÇÕES DO SEU FUNIL =================
+    // DICA: Se sua página estiver em https://, a URL da VPS também deve usar https:// (via Cloudflare ou domínio)
+    const RAPUNZEL_URL = "https://SEU_DOMINIO_OU_IP"; 
+    const FUNNEL_ID = "1"; 
+    const CHECKOUT_URL = "https://pay.wiapy.com/Gqwf8-zXEiMY";
+
+    // 1. RASTREIO AUTOMÁTICO & AUTO-PREENCHIMENTO AO ABRIR
+    window.addEventListener('DOMContentLoaded', async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const leadPhone = urlParams.get('phone') || urlParams.get('whatsapp');
+      const leadName = urlParams.get('name') || urlParams.get('nome');
+
+      // Se o link já veio com nome/telefone do WhatsApp, já preenche a tela
+      if (leadPhone) {
+        const phoneInput = document.getElementById('phone');
+        phoneInput.value = leadPhone;
+        mascaraTelefone(phoneInput);
+
+        // Notifica o Rapunzel silenciosamente que a página foi aberta
+        try {
+          fetch(`${RAPUNZEL_URL}/api/webhooks/funnels/${FUNNEL_ID}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              phone: leadPhone,
+              name: leadName || '',
+              tag: "Abriu Link de Redirecionamento - Funil " + FUNNEL_ID
+            })
+          }).catch(() => {});
+        } catch (e) {}
+      }
+
+      if (leadName) {
+        document.getElementById('name').value = leadName;
+      }
+    });
+
+    // 2. MÁSCARA INTELIGENTE DE TELEFONE (11) 98765-4321
+    function mascaraTelefone(input) {
+      let v = input.value.replace(/\D/g, "");
+      if (v.length > 11) v = v.substring(0, 11);
+      if (v.length > 10) {
+        input.value = v.replace(/^(\d{2})(\d{5})(\d{4})$/, "($1) $2-$3");
+      } else if (v.length > 5) {
+        input.value = v.replace(/^(\d{2})(\d{4})(\d{0,4})$/, "($1) $2-$3");
+      } else if (v.length > 2) {
+        input.value = v.replace(/^(\d{2})(\d{0,5})$/, "($1) $2");
+      } else {
+        input.value = v;
+      }
+    }
+
+    // 3. ENVIO DO WEBHOOK & REDIRECIONAMENTO COM DADOS PRÉ-PREENCHIDOS
+    async function handleSubmit(e) {
+      e.preventDefault();
+      const btn = document.getElementById('btnSubmit');
+      const name = document.getElementById('name').value.trim();
+      const rawPhone = document.getElementById('phone').value.trim();
+      let cleanPhone = rawPhone.replace(/\D/g, '');
+
+      // Garante o código do Brasil 55
+      if (cleanPhone.length >= 10 && cleanPhone.length <= 11) {
+        cleanPhone = '55' + cleanPhone;
+      }
+
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Redirecionando com Segurança...';
+
+      // Dispara o webhook com timeout máximo de 1.2 segundos para NUNCA travar o cliente
+      const sendWebhook = fetch(`${RAPUNZEL_URL}/api/webhooks/funnels/${FUNNEL_ID}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name,
+          phone: cleanPhone,
+          tag: "Clicou no Checkout - Wiapay (Funil " + FUNNEL_ID + ")"
+        })
+      });
+
+      const timeout = new Promise(resolve => setTimeout(resolve, 1200));
+
+      try {
+        await Promise.race([sendWebhook, timeout]);
+      } catch (err) {
+        console.warn("Webhook finalizado/ignorado:", err);
+      }
+
+      // Monta a URL de checkout passando Nome e Telefone pré-preenchidos na Wiapay
+      const separator = CHECKOUT_URL.includes('?') ? '&' : '?';
+      const finalCheckoutUrl = `${CHECKOUT_URL}${separator}name=${encodeURIComponent(name)}&phone=${cleanPhone}&telephone=${cleanPhone}&cellphone=${cleanPhone}`;
+
+      window.location.href = finalCheckoutUrl;
+    }
+  </script>
+</body>
+</html>
