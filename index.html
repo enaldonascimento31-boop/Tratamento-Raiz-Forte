@@ -31,8 +31,8 @@
     }
     .spinner-box {
       position: relative;
-      width: 60px;
-      height: 60px;
+      width: 64px;
+      height: 64px;
       margin-bottom: 24px;
     }
     .spinner {
@@ -49,18 +49,19 @@
       left: 50%;
       transform: translate(-50%, -50%);
       color: #10b981;
-      font-size: 18px;
+      font-size: 20px;
     }
     h2 {
-      font-size: 18px;
+      font-size: 19px;
       font-weight: 700;
       color: #f3f4f6;
-      margin-bottom: 6px;
+      margin-bottom: 8px;
     }
     p {
       font-size: 13px;
       color: #9ca3af;
-      margin-bottom: 20px;
+      margin-bottom: 24px;
+      line-height: 1.4;
     }
     .badge {
       display: inline-flex;
@@ -68,11 +69,12 @@
       gap: 6px;
       background: #111827;
       border: 1px solid #1f2937;
-      padding: 6px 14px;
+      padding: 8px 16px;
       border-radius: 999px;
       font-size: 11px;
       color: #10b981;
       font-weight: 600;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     }
     @keyframes spin {
       0% { transform: rotate(0deg); }
@@ -88,58 +90,81 @@
       <i class="fa-solid fa-lock spinner-icon"></i>
     </div>
     <h2>A preparar o seu atendimento...</h2>
-    <p>A conectar ao checkout oficial criptografado.</p>
+    <p>A conectar ao checkout oficial criptografado da Wiapay.</p>
     <div class="badge">
-      <i class="fa-solid fa-shield-halved"></i> Ambiente 100% Seguro
+      <i class="fa-solid fa-shield-halved"></i> Ambiente 100% Criptografado & Seguro
     </div>
   </div>
 
   <script>
-    // ================= CONFIGURAÇÕES DO SEU FUNIL =================
-    const RAPUNZEL_URL = "http://SEU_IP_OU_DOMINIO:3000"; // Seu IP ou domínio da VPS
-    const FUNNEL_ID = "1";
+    // ================= CONFIGURAÇÕES REAIS =================
+    // 1. Sua VPS com SSL Oficial (HTTPS):
+    const RAPUNZEL_URL = "https://moneyrapunzel.tech"; 
+
+    // 2. Link do Checkout Oficial Wiapay:
     const CHECKOUT_URL = "https://pay.wiapy.com/Gqwf8-zXEiMY";
+
+    // 3. Funil Padrão (caso não seja especificado no link):
+    const DEFAULT_FUNNEL_ID = "1";
 
     async function redirectNow() {
       // 1. Extrai dados passados na URL pelo WhatsApp
       const urlParams = new URLSearchParams(window.location.search);
-      const name = urlParams.get('name') || '';
-      const rawPhone = urlParams.get('phone') || '';
+      const name = urlParams.get('name') || urlParams.get('nome') || '';
+      const rawPhone = urlParams.get('phone') || urlParams.get('p') || urlParams.get('whatsapp') || '';
+      const funnelId = urlParams.get('f') || urlParams.get('funnel_id') || DEFAULT_FUNNEL_ID;
 
       let cleanPhone = rawPhone.replace(/\D/g, '');
       if (cleanPhone.length >= 10 && cleanPhone.length <= 11) {
         cleanPhone = '55' + cleanPhone;
       }
 
-      // 2. Prepara o envio do webhook para a VPS
-      const sendWebhook = fetch(`${RAPUNZEL_URL}/api/webhooks/funnels/${FUNNEL_ID}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: name,
-          phone: cleanPhone || rawPhone,
-          tag: "Clicou no Link do WhatsApp - Indo para Checkout"
-        })
+      // 2. Dispara o Webhook para a VPS (se houver telefone identificado)
+      if (cleanPhone) {
+        const sendWebhook = fetch(`${RAPUNZEL_URL}/api/webhooks/funnels/${funnelId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: name,
+            phone: cleanPhone,
+            tag: `Clicou no Checkout Wiapay (Funil ${funnelId})`
+          })
+        });
+
+        // Trava de segurança: espera no máximo 900ms para a tela nunca travar para o cliente
+        const timeout = new Promise(resolve => setTimeout(resolve, 900));
+        try {
+          await Promise.race([sendWebhook, timeout]);
+        } catch (err) {
+          console.warn("Webhook finalizado/ignorado:", err);
+        }
+      }
+
+      // Dá um breve tempo visual de 400ms para a animação do cadeado rodar de forma suave
+      await new Promise(resolve => setTimeout(resolve, 400));
+
+      // 3. Monta o link da Wiapay passando os dados pré-preenchidos e UTMs
+      const separator = CHECKOUT_URL.includes('?') ? '&' : '?';
+      const checkoutParams = new URLSearchParams();
+
+      if (name) checkoutParams.append('name', name);
+      if (cleanPhone) {
+        checkoutParams.append('phone', cleanPhone);
+        checkoutParams.append('cellphone', cleanPhone);
+        checkoutParams.append('telephone', cleanPhone);
+      }
+
+      // Repassa parâmetros de tráfego/pixel (Facebook, TikTok, Google) se existirem
+      urlParams.forEach((val, key) => {
+        if (key.startsWith('utm_') || key === 'src' || key === 'sck') {
+          checkoutParams.append(key, val);
+        }
       });
 
-      // 3. Trava de segurança: espera no máximo 1.2s para nunca travar a tela do cliente
-      const minDelay = new Promise(resolve => setTimeout(resolve, 1200));
+      const paramsString = checkoutParams.toString();
+      const finalUrl = paramsString ? `${CHECKOUT_URL}${separator}${paramsString}` : CHECKOUT_URL;
 
-      try {
-        await Promise.allSettled([sendWebhook, minDelay]);
-      } catch (err) {
-        console.warn("Webhook finalizado/ignorado:", err);
-      }
-
-      // 4. Monta o link da Wiapay passando os dados pré-preenchidos
-      const separator = CHECKOUT_URL.includes('?') ? '&' : '?';
-      let finalUrl = CHECKOUT_URL;
-
-      if (cleanPhone || name) {
-        finalUrl = `${CHECKOUT_URL}${separator}name=${encodeURIComponent(name)}&phone=${cleanPhone}&cellphone=${cleanPhone}&telephone=${cleanPhone}`;
-      }
-
-      // Redireciona na hora
+      // Redireciona na hora para a Wiapay
       window.location.replace(finalUrl);
     }
 
